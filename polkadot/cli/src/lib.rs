@@ -87,13 +87,17 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 
 	match cli::prepare_execution::<service::Factory, _, _, _, _>(args, worker.exit_only(), version, load_spec, "parity-polkadot")? {
 		cli::Action::ExecutedInternally => (),
-		cli::Action::RunService(mut config) => {
+		cli::Action::RunService(mut config, matches) => {
 			info!("Parity ·:· Polkadot");
 			info!("  version {}", config.full_version());
 			info!("  by Parity Technologies, 2017, 2018");
 			info!("Chain specification: {}", config.chain_spec.name());
 			info!("Node name: {}", config.name);
 			info!("Roles: {:?}", config.roles);
+
+			let advisor = cli::advisor::Advisor::new(matches);
+			advisor.show_advices();
+
 			config.custom = worker.configuration();
 			let mut runtime = Runtime::new()?;
 			let executor = runtime.executor();
@@ -101,6 +105,7 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 				true => run_until_exit(&mut runtime, service::new_light(config, executor)?, worker)?,
 				false => run_until_exit(&mut runtime, service::new_full(config, executor)?, worker)?,
 			}
+
 			// TODO: hard exit if this stalls?
 			runtime.shutdown_on_idle().wait().expect("failed to shut down event loop");
 		}

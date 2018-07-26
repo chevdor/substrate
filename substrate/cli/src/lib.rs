@@ -53,6 +53,7 @@ extern crate log;
 
 pub mod error;
 pub mod informant;
+pub mod advisor;
 mod panic_hook;
 
 use runtime_primitives::traits::As;
@@ -85,11 +86,11 @@ pub struct VersionInfo {
 }
 
 /// CLI Action
-pub enum Action<F: ServiceFactory> {
+pub enum Action<'a, F: ServiceFactory> {
 	/// Substrate handled the command. No need to do anything.
 	ExecutedInternally,
 	/// Service mode requested. Caller should start the service.
-	RunService(FactoryFullConfiguration<F>),
+	RunService(FactoryFullConfiguration<F>, clap::ArgMatches<'a>),
 }
 
 fn load_spec<F, G>(matches: &clap::ArgMatches, factory: F) -> Result<ChainSpec<G>, String>
@@ -162,7 +163,7 @@ where
 		author = version.author,
 	);
 	let yaml = &clap::YamlLoader::load_from_str(&yaml).expect("Invalid yml file")[0];
-	let matches = match clap::App::from_yaml(yaml)
+	let matches = &match clap::App::from_yaml(yaml)
 		.version(&(crate_version!().to_owned() + "\n")[..])
 		.get_matches_from_safe(args) {
 			Ok(m) => m,
@@ -298,7 +299,7 @@ where
 		config.telemetry_url = Some(url.to_owned());
 	}
 
-	Ok(Action::RunService(config))
+	Ok(Action::RunService(config, matches.to_owned()))
 }
 
 fn build_spec<F>(matches: &clap::ArgMatches, spec: ChainSpec<FactoryGenesis<F>>) -> error::Result<()>
