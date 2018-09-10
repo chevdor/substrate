@@ -39,7 +39,7 @@ cache:
     when:                          on_success
     expire_in:                     1 mos
     paths:
-    - target/release/polkadot 
+    - target/release/polkadot
 
 .determine_version: &determine_version |
   export VERSION=$(grep -m 1 "version =" Cargo.toml | awk '{print $3}' | tr -d '"' | tr -d "\n")
@@ -60,7 +60,7 @@ test:rust:stable:                  &test
     - ./scripts/build-demos.sh
     - time cargo test --all --release
   tags:
-    - rust-stable 
+    - rust-stable
 
 .optional_test:                    &optional_test
   <<:                              *test
@@ -80,9 +80,25 @@ build:linux:ubuntu:amd64:          &build
   script:
     - ./scripts/init.sh
     - export PATH="${CI_PROJECT_DIR}/cargo/bin/:$PATH"
-    - ./scripts/build.sh 
-    - ./scripts/build-demos.sh 
+    - ./scripts/build.sh
+    - ./scripts/build-demos.sh
     - cargo build --release
+  <<:                              *determine_version
+  <<:                              *collect_artifacts
+  tags:
+    - rust-stable
+  allow_failure: true
+
+build:docker:                      &build
+  stage:                           build
+  only:                            *releaseable_branches
+  variables:
+    CARGO_TARGET:                  x86_64-unknown-linux-gnu
+    TARGET:                        native
+    RUST_TOOLCHAIN:                stable
+  script:
+    - docker build -t chevdor/polkadot:$VERSION .
+    - docker push chevdor/polkadot:$VERSION
   <<:                              *collect_artifacts
   tags:
     - rust-stable
