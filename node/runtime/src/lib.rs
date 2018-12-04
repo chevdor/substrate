@@ -21,22 +21,20 @@
 #![recursion_limit="256"]
 
 #[macro_use]
-extern crate sr_api as runtime_api;
-
-#[macro_use]
 extern crate srml_support;
 
 #[macro_use]
 extern crate sr_primitives as runtime_primitives;
 
-#[cfg(feature = "std")]
-#[macro_use]
-extern crate serde_derive;
-
 extern crate substrate_primitives;
 
 #[macro_use]
+extern crate substrate_client as client;
+
+#[macro_use]
 extern crate parity_codec_derive;
+
+extern crate parity_codec as codec;
 
 extern crate sr_std as rstd;
 extern crate srml_balances as balances;
@@ -45,6 +43,7 @@ extern crate srml_contract as contract;
 extern crate srml_council as council;
 extern crate srml_democracy as democracy;
 extern crate srml_executive as executive;
+extern crate srml_grandpa as grandpa;
 extern crate srml_session as session;
 extern crate srml_staking as staking;
 extern crate srml_system as system;
@@ -58,20 +57,25 @@ extern crate node_primitives;
 use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
 use node_primitives::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash, Index,
-	SessionKey, Signature
+	AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, SessionKey, Signature
 };
-use runtime_api::{runtime::*, id::*};
-use runtime_primitives::ApplyResult;
+use grandpa::fg_primitives::{self, ScheduledChange, id::*};
+use client::{
+	block_builder::api as block_builder_api, runtime_api::{self as client_api, id::*}
+};
+use runtime_primitives::{ApplyResult, CheckInherentError, BasicInherentData};
 use runtime_primitives::transaction_validity::TransactionValidity;
 use runtime_primitives::generic;
-use runtime_primitives::traits::{Convert, BlakeTwo256, Block as BlockT};
+use runtime_primitives::traits::{
+	Convert, BlakeTwo256, Block as BlockT, DigestFor, NumberFor, ProvideInherent
+};
 use version::RuntimeVersion;
 use council::{motions as council_motions, voting as council_voting};
 #[cfg(feature = "std")]
 use council::seats as council_seats;
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
+use substrate_primitives::OpaqueMetadata;
 
 #[cfg(any(feature = "std", test))]
 pub use runtime_primitives::BuildStorage;
@@ -95,7 +99,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: apis_vec!([
 		(BLOCK_BUILDER, 1),
 		(TAGGED_TRANSACTION_QUEUE, 1),
-		(METADATA, 1)
+		(METADATA, 1),
+		(GRANDPA_API, 1),
 	]),
 };
 
@@ -151,7 +156,7 @@ impl Convert<AccountId, SessionKey> for SessionKeyConversion {
 
 impl session::Trait for Runtime {
 	type ConvertAccountIdToSessionKey = SessionKeyConversion;
-	type OnSessionChange = Staking;
+	type OnSessionChange = (Staking, grandpa::SyncedAuthorities<Runtime>);
 	type Event = Event;
 }
 
@@ -195,10 +200,17 @@ impl upgrade_key::Trait for Runtime {
 	type Event = Event;
 }
 
+impl grandpa::Trait for Runtime {
+	type SessionKey = SessionKey;
+	type Log = Log;
+	type Event = Event;
+}
+
 construct_runtime!(
 	pub enum Runtime with Log(InternalLog: DigestItem<Hash, SessionKey>) where
 		Block = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
+		NodeBlock = node_primitives::Block,
+		InherentData = BasicInherentData
 	{
 		System: system::{default, Log(ChangesTrieRoot)},
 		Timestamp: timestamp::{Module, Call, Storage, Config<T>, Inherent},
@@ -211,6 +223,7 @@ construct_runtime!(
 		CouncilVoting: council_voting,
 		CouncilMotions: council_motions::{Module, Call, Storage, Event<T>, Origin},
 		CouncilSeats: council_seats::{Config<T>},
+		Grandpa: grandpa::{Module, Call, Storage, Config<T>, Log(), Event<T>},
 		Treasury: treasury,
 		Contract: contract::{Module, Call, Config<T>, Event<T>},
 		UpgradeKey: upgrade_key,
@@ -219,6 +232,7 @@ construct_runtime!(
 
 /// The address format for describing accounts.
 pub use balances::address::Address as RawAddress;
+
 /// The address format for describing accounts.
 pub type Address = balances::Address<Runtime>;
 /// Block header type as expected by this runtime.
@@ -226,7 +240,7 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256, Log>;
 /// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification
-pub type SignedBlock = generic::SignedBlock<Header, UncheckedExtrinsic>;
+pub type SignedBlock = generic::SignedBlock<Block>;
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
 /// Unchecked extrinsic type as expected by this runtime.
@@ -236,8 +250,8 @@ pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Index, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = executive::Executive<Runtime, Block, balances::ChainContext<Runtime>, Balances, AllModules>;
 
-impl_apis! {
-	impl Core<Block, SessionKey> for Runtime {
+impl_runtime_apis! {
+	impl client_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
 			VERSION
 		}
@@ -249,19 +263,19 @@ impl_apis! {
 		fn execute_block(block: Block) {
 			Executive::execute_block(block)
 		}
-	}
 
-	impl Metadata<RuntimeMetadata> for Runtime {
-		fn metadata() -> RuntimeMetadata {
-			Runtime::metadata()
-		}
-	}
-
-	impl BlockBuilder<Block, InherentData, UncheckedExtrinsic, InherentData, InherentError> for Runtime {
 		fn initialise_block(header: <Block as BlockT>::Header) {
 			Executive::initialise_block(&header)
 		}
+	}
 
+	impl client_api::Metadata<Block> for Runtime {
+		fn metadata() -> OpaqueMetadata {
+			Runtime::metadata().into()
+		}
+	}
+
+	impl block_builder_api::BlockBuilder<Block, BasicInherentData> for Runtime {
 		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyResult {
 			Executive::apply_extrinsic(extrinsic)
 		}
@@ -270,12 +284,27 @@ impl_apis! {
 			Executive::finalise_block()
 		}
 
-		fn inherent_extrinsics(data: InherentData) -> Vec<UncheckedExtrinsic> {
-			data.create_inherent_extrinsics()
+		fn inherent_extrinsics(data: BasicInherentData) -> Vec<<Block as BlockT>::Extrinsic> {
+			let mut inherent = Vec::new();
+
+			inherent.extend(
+				Timestamp::create_inherent_extrinsics(data.timestamp)
+					.into_iter()
+					.map(|v| (v.0, UncheckedExtrinsic::new_unsigned(Call::Timestamp(v.1))))
+			);
+
+			inherent.extend(
+				Consensus::create_inherent_extrinsics(data.consensus)
+					.into_iter()
+					.map(|v| (v.0, UncheckedExtrinsic::new_unsigned(Call::Consensus(v.1))))
+			);
+
+			inherent.as_mut_slice().sort_unstable_by_key(|v| v.0);
+			inherent.into_iter().map(|v| v.1).collect()
 		}
 
-		fn check_inherents(block: Block, data: InherentData) -> Result<(), InherentError> {
-			data.check_inherents(block)
+		fn check_inherents(block: Block, data: BasicInherentData) -> Result<(), CheckInherentError> {
+			Runtime::check_inherents(block, data)
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
@@ -283,9 +312,29 @@ impl_apis! {
 		}
 	}
 
-	impl TaggedTransactionQueue<Block, TransactionValidity> for Runtime {
+	impl client_api::TaggedTransactionQueue<Block> for Runtime {
 		fn validate_transaction(tx: <Block as BlockT>::Extrinsic) -> TransactionValidity {
 			Executive::validate_transaction(tx)
+		}
+	}
+
+	impl fg_primitives::GrandpaApi<Block> for Runtime {
+		fn grandpa_pending_change(digest: DigestFor<Block>)
+			-> Option<ScheduledChange<NumberFor<Block>>>
+		{
+			for log in digest.logs.iter().filter_map(|l| match l {
+				Log(InternalLog::grandpa(grandpa_signal)) => Some(grandpa_signal),
+				_=> None
+			}) {
+				if let Some(change) = Grandpa::scrape_digest_change(log) {
+					return Some(change);
+				}
+			}
+			None
+		}
+
+		fn grandpa_authorities() -> Vec<(SessionKey, u64)> {
+			Grandpa::grandpa_authorities()
 		}
 	}
 }

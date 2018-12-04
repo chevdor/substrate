@@ -39,7 +39,7 @@ use self::error::Result;
 
 build_rpc_trait! {
 	/// Substrate blockchain API
-	pub trait ChainApi<Hash, Header, Number, Extrinsic> {
+	pub trait ChainApi<Hash, Header, Number, SignedBlock> {
 		type Metadata;
 
 		/// Get header of a relay chain block.
@@ -48,7 +48,7 @@ build_rpc_trait! {
 
 		/// Get header and body of a relay chain block.
 		#[rpc(name = "chain_getBlock")]
-		fn block(&self, Trailing<Hash>) -> Result<Option<SignedBlock<Header, Extrinsic>>>;
+		fn block(&self, Trailing<Hash>) -> Result<Option<SignedBlock>>;
 
 		/// Get hash of the n-th block in the canon chain.
 		///
@@ -97,16 +97,16 @@ build_rpc_trait! {
 }
 
 /// Chain API with subscriptions support.
-pub struct Chain<B, E, Block: BlockT> {
+pub struct Chain<B, E, Block: BlockT, RA> {
 	/// Substrate client.
-	client: Arc<Client<B, E, Block>>,
+	client: Arc<Client<B, E, Block, RA>>,
 	/// Current subscriptions.
 	subscriptions: Subscriptions,
 }
 
-impl<B, E, Block: BlockT> Chain<B, E, Block> {
+impl<B, E, Block: BlockT, RA> Chain<B, E, Block, RA> {
 	/// Create new Chain API RPC handler.
-	pub fn new(client: Arc<Client<B, E, Block>>, subscriptions: Subscriptions) -> Self {
+	pub fn new(client: Arc<Client<B, E, Block, RA>>, subscriptions: Subscriptions) -> Self {
 		Self {
 			client,
 			subscriptions,
@@ -114,10 +114,11 @@ impl<B, E, Block: BlockT> Chain<B, E, Block> {
 	}
 }
 
-impl<B, E, Block> Chain<B, E, Block> where
+impl<B, E, Block, RA> Chain<B, E, Block, RA> where
 	Block: BlockT<Hash=H256> + 'static,
 	B: client::backend::Backend<Block, Blake2Hasher> + Send + Sync + 'static,
 	E: client::CallExecutor<Block, Blake2Hasher> + Send + Sync + 'static,
+	RA: Send + Sync + 'static
 {
 	fn unwrap_or_best(&self, hash: Trailing<Block::Hash>) -> Result<Block::Hash> {
 		Ok(match hash.into() {
@@ -163,10 +164,11 @@ impl<B, E, Block> Chain<B, E, Block> where
 	}
 }
 
-impl<B, E, Block> ChainApi<Block::Hash, Block::Header, NumberFor<Block>, Block::Extrinsic> for Chain<B, E, Block> where
+impl<B, E, Block, RA> ChainApi<Block::Hash, Block::Header, NumberFor<Block>, SignedBlock<Block>> for Chain<B, E, Block, RA> where
 	Block: BlockT<Hash=H256> + 'static,
 	B: client::backend::Backend<Block, Blake2Hasher> + Send + Sync + 'static,
 	E: client::CallExecutor<Block, Blake2Hasher> + Send + Sync + 'static,
+	RA: Send + Sync + 'static
 {
 	type Metadata = ::metadata::Metadata;
 
@@ -176,7 +178,7 @@ impl<B, E, Block> ChainApi<Block::Hash, Block::Header, NumberFor<Block>, Block::
 	}
 
 	fn block(&self, hash: Trailing<Block::Hash>)
-		-> Result<Option<SignedBlock<Block::Header, Block::Extrinsic>>>
+		-> Result<Option<SignedBlock<Block>>>
 	{
 		let hash = self.unwrap_or_best(hash)?;
 		Ok(self.client.block(&BlockId::Hash(hash))?)

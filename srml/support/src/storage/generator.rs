@@ -53,7 +53,7 @@ pub use rstd::borrow::Borrow;
 #[doc(hidden)]
 pub use rstd::marker::PhantomData;
 
-pub use substrate_metadata::{
+pub use srml_metadata::{
 	DecodeDifferent, StorageMetadata, StorageFunctionMetadata,
 	StorageFunctionType, StorageFunctionModifier
 };
@@ -622,11 +622,13 @@ macro_rules! __generate_genesis_config {
 		// final build storage call
 		[$call:expr]
 	) => {
-		#[derive(Serialize, Deserialize)]
 		#[cfg(feature = "std")]
+		#[derive(Serialize, Deserialize)]
 		#[serde(rename_all = "camelCase")]
 		#[serde(deny_unknown_fields)]
 		pub struct GenesisConfig<$traitinstance: $traittype> {
+			#[serde(skip)]
+			pub _genesis_phantom_data: $crate::storage::generator::PhantomData<$traitinstance>,
 			$(pub $fieldname : $fieldtype ,)*
 			$( $(#[$attr])* pub $extrafieldname : $extrafieldty ,)*
 		}
@@ -635,6 +637,7 @@ macro_rules! __generate_genesis_config {
 		impl<$traitinstance: $traittype> Default for GenesisConfig<$traitinstance> {
 			fn default() -> Self {
 				GenesisConfig {
+					_genesis_phantom_data: Default::default(),
 					$($fieldname : $fielddefault ,)*
 					$($extrafieldname : $extrafielddefault ,)*
 				}

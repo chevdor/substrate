@@ -27,12 +27,12 @@ members = [
 	"core/consensus/rhd",
 	"core/executor",
 	"core/finality-grandpa",
+	"core/finality-grandpa/primitives",
 	"core/keyring",
 	"core/network",
 	"core/primitives",
 	"core/rpc",
 	"core/rpc-servers",
-	"core/sr-api",
 	"core/sr-io",
 	"core/sr-sandbox",
 	"core/sr-std",
@@ -48,6 +48,7 @@ members = [
 	"srml/democracy",
 	"srml/example",
 	"srml/executive",
+	"srml/grandpa",
 	"srml/metadata",
 	"core/sr-primitives",
 	"srml/session",
@@ -59,7 +60,7 @@ members = [
 	"core/serializer",
 	"core/service",
 	"core/service/test",
-	"core/state-db",
+	"core/sr-api-macros",
 	"core/state-machine",
 	"core/test-runtime",
 	"core/telemetry",
@@ -76,6 +77,7 @@ exclude = [
 	"core/executor/wasm",
 	"pwasm-alloc",
 	"core/test-runtime/wasm",
+	"test-utils/chain-spec-builder"
 ]
 
 [badges]

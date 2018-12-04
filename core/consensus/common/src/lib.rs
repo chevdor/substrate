@@ -14,9 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate Consensus Common.  If not, see <http://www.gnu.org/licenses/>.
 
-// tag::description[]
-//! Consensus basics and common features
-// end::description[]
+//! Tracks offline validators.
 
 // This provides "unused" building blocks to other crates
 #![allow(dead_code)]
@@ -86,25 +84,6 @@ pub trait Proposer<B: Block> {
 	type Create: IntoFuture<Item=B,Error=Self::Error>;
 	/// Create a proposal.
 	fn propose(&self) -> Self::Create;
-}
-
-/// Inherent data to include in a block.
-#[derive(Encode, Decode)]
-pub struct InherentData {
-	/// Current timestamp.
-	pub timestamp: u64,
-	/// Indices of offline validators.
-	pub offline_indices: Vec<u32>,
-}
-
-impl InherentData {
-	/// Create a new `InherentData` instance.
-	pub fn new(timestamp: u64, offline_indices: Vec<u32>) -> Self {
-		Self {
-			timestamp,
-			offline_indices
-		}
-	}
 }
 
 /// An oracle for when major synchronization work is being undertaken.

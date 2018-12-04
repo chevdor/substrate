@@ -29,7 +29,7 @@ impl_outer_origin!{
 }
 
 // Workaround for https://github.com/rust-lang/rust/issues/26925 . Remove when sorted.
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Runtime;
 impl system::Trait for Runtime {
 	type Origin = Origin;
@@ -72,6 +72,7 @@ impl ExtBuilder {
 		self.existential_deposit = existential_deposit;
 		self
 	}
+	#[allow(dead_code)]
 	pub fn transfer_fee(mut self, transfer_fee: u64) -> Self {
 		self.transfer_fee = transfer_fee;
 		self
@@ -103,6 +104,7 @@ impl ExtBuilder {
 			transfer_fee: self.transfer_fee,
 			creation_fee: self.creation_fee,
 			reclaim_rebate: 0,
+			_genesis_phantom_data: Default::default(),
 		}.build_storage().unwrap().0);
 		t.into()
 	}

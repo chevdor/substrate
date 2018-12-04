@@ -34,13 +34,6 @@ extern crate substrate_primitives;
 // Needed for various traits. In our case, `OnFinalise`.
 extern crate sr_primitives;
 
-// Needed for deriving `Serialize` and `Deserialize` for various types.
-// We only implement the serde traits for std builds - they're unneeded
-// in the wasm runtime.
-#[cfg(feature = "std")]
-#[macro_use]
-extern crate serde_derive;
-
 // Needed for deriving `Encode` and `Decode` for `RawEvent`.
 #[macro_use]
 extern crate parity_codec_derive;
@@ -320,6 +313,7 @@ mod tests {
 		t.extend(GenesisConfig::<Test>{
 			dummy: 42,
 			foo: 24,
+			_genesis_phantom_data: Default::default(),
 		}.build_storage().unwrap().0);
 		t.into()
 	}

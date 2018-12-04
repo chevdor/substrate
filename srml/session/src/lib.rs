@@ -19,10 +19,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(feature = "std")]
-#[macro_use]
-extern crate serde_derive;
-
 extern crate sr_std as rstd;
 
 #[macro_use]
@@ -55,9 +51,35 @@ pub trait OnSessionChange<T> {
 	fn on_session_change(time_elapsed: T, should_reward: bool);
 }
 
-impl<T> OnSessionChange<T> for () {
-	fn on_session_change(_: T, _: bool) {}
+macro_rules! for_each_tuple {
+	($m:ident) => {
+		for_each_tuple! { @IMPL $m !! A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, }
+	};
+	(@IMPL $m:ident !!) => { $m! { } };
+	(@IMPL $m:ident !! $h:ident, $($t:ident,)*) => {
+		$m! { $h $($t)* }
+		for_each_tuple! { @IMPL $m !! $($t,)* }
+	}
 }
+
+macro_rules! impl_session_change {
+	() => (
+		impl<T> OnSessionChange<T> for () {
+			fn on_session_change(_: T, _: bool) {}
+		}
+	);
+
+	( $($t:ident)* ) => {
+		impl<T: Clone, $($t: OnSessionChange<T>),*> OnSessionChange<T> for ($($t,)*) {
+			fn on_session_change(time_elapsed: T, should_reward: bool) {
+				$($t::on_session_change(time_elapsed.clone(), should_reward);)*
+			}
+		}
+	}
+}
+
+for_each_tuple!(impl_session_change);
+
 
 pub trait Trait: timestamp::Trait {
 	type ConvertAccountIdToSessionKey: Convert<Self::AccountId, Self::SessionKey>;
@@ -274,13 +296,16 @@ mod tests {
 		t.extend(consensus::GenesisConfig::<Test>{
 			code: vec![],
 			authorities: vec![1, 2, 3],
+			_genesis_phantom_data: Default::default(),
 		}.build_storage().unwrap().0);
 		t.extend(timestamp::GenesisConfig::<Test>{
 			period: 5,
+			_genesis_phantom_data: Default::default(),
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
 			session_length: 2,
 			validators: vec![1, 2, 3],
+			_genesis_phantom_data: Default::default(),
 		}.build_storage().unwrap().0);
 		runtime_io::TestExternalities::new(t)
 	}

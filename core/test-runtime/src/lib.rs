@@ -14,30 +14,27 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-// tag::description[]
 //! The Substrate runtime. This can be compiled with #[no_std], ready for Wasm.
-// end::description[]
 
 #![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(feature = "std")]
+extern crate serde;
 
 extern crate sr_std as rstd;
 extern crate parity_codec as codec;
 extern crate sr_primitives as runtime_primitives;
 
-#[cfg(feature = "std")]
 #[macro_use]
-extern crate serde_derive;
+extern crate substrate_client as client;
 
 #[macro_use]
 extern crate srml_support as runtime_support;
 #[macro_use]
 extern crate parity_codec_derive;
-#[macro_use]
-extern crate sr_api as runtime_api;
 extern crate sr_io as runtime_io;
 #[macro_use]
 extern crate sr_version as runtime_version;
-
 
 #[cfg(test)]
 #[macro_use]
@@ -53,12 +50,18 @@ pub mod system;
 use rstd::prelude::*;
 use codec::{Encode, Decode};
 
-use runtime_api::runtime::*;
-use runtime_primitives::traits::{BlindCheckable, BlakeTwo256, Block as BlockT, Extrinsic as ExtrinsicT};
-use runtime_primitives::{ApplyResult, Ed25519Signature, transaction_validity::TransactionValidity};
+use client::{runtime_api as client_api, block_builder::api as block_builder_api};
+use runtime_primitives::{
+	ApplyResult, Ed25519Signature, transaction_validity::TransactionValidity,
+	traits::{
+		BlindCheckable, BlakeTwo256, Block as BlockT, Extrinsic as ExtrinsicT,
+		GetNodeBlockType, GetRuntimeBlockType
+	}, CheckInherentError
+};
 use runtime_version::RuntimeVersion;
 pub use primitives::hash::H256;
 use primitives::AuthorityId;
+use primitives::OpaqueMetadata;
 #[cfg(any(feature = "std", test))]
 use runtime_version::NativeVersion;
 
@@ -87,7 +90,7 @@ pub fn native_version() -> NativeVersion {
 
 /// Calls in transactions.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct Transfer {
 	pub from: AccountId,
 	pub to: AccountId,
@@ -97,10 +100,18 @@ pub struct Transfer {
 
 /// Extrinsic for test-runtime.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct Extrinsic {
 	pub transfer: Transfer,
 	pub signature: Ed25519Signature,
+}
+
+#[cfg(feature = "std")]
+impl serde::Serialize for Extrinsic
+{
+	fn serialize<S>(&self, seq: S) -> Result<S::Ok, S::Error> where S: ::serde::Serializer {
+		self.using_encoded(|bytes| seq.serialize_bytes(bytes))
+	}
 }
 
 impl BlindCheckable for Extrinsic {
@@ -158,20 +169,28 @@ pub fn changes_trie_config() -> primitives::ChangesTrieConfiguration {
 	}
 }
 
-mod test_api {
-	decl_apis! {
+pub mod test_api {
+	use super::AccountId;
+
+	decl_runtime_apis! {
 		pub trait TestAPI {
-			fn balance_of<AccountId>(id: AccountId) -> u64;
+			fn balance_of(id: AccountId) -> u64;
 		}
 	}
 }
 
-use test_api::runtime::TestAPI;
+pub struct Runtime;
 
-struct Runtime;
+impl GetNodeBlockType for Runtime {
+	type NodeBlock = Block;
+}
 
-impl_apis! {
-	impl Core<Block, AuthorityId> for Runtime {
+impl GetRuntimeBlockType for Runtime {
+	type RuntimeBlock = Block;
+}
+
+impl_runtime_apis! {
+	impl client_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
 			version()
 		}
@@ -183,19 +202,25 @@ impl_apis! {
 		fn execute_block(block: Block) {
 			system::execute_block(block)
 		}
+
+		fn initialise_block(header: <Block as BlockT>::Header) {
+			system::initialise_block(header)
+		}
 	}
 
-	impl TaggedTransactionQueue<Block, TransactionValidity> for Runtime {
+	impl client_api::Metadata<Block> for Runtime {
+		fn metadata() -> OpaqueMetadata {
+			unimplemented!()
+		}
+	}
+
+	impl client_api::TaggedTransactionQueue<Block> for Runtime {
 		fn validate_transaction(utx: <Block as BlockT>::Extrinsic) -> TransactionValidity {
 			system::validate_transaction(utx)
 		}
 	}
 
-	impl BlockBuilder<Block, u32, u32, u32, u32> for Runtime {
-		fn initialise_block(header: <Block as BlockT>::Header) {
-			system::initialise_block(header)
-		}
-
+	impl block_builder_api::BlockBuilder<Block, ()> for Runtime {
 		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyResult {
 			system::execute_transaction(extrinsic)
 		}
@@ -204,11 +229,11 @@ impl_apis! {
 			system::finalise_block()
 		}
 
-		fn inherent_extrinsics(_data: u32) -> Vec<u32> {
+		fn inherent_extrinsics(_data: ()) -> Vec<<Block as BlockT>::Extrinsic> {
 			unimplemented!()
 		}
 
-		fn check_inherents(_block: Block, _data: u32) -> Result<(), u32> {
+		fn check_inherents(_block: Block, _data: ()) -> Result<(), CheckInherentError> {
 			unimplemented!()
 		}
 
@@ -217,7 +242,7 @@ impl_apis! {
 		}
 	}
 
-	impl TestAPI<AccountId> for Runtime {
+	impl self::test_api::TestAPI<Block> for Runtime {
 		fn balance_of(id: AccountId) -> u64 {
 			system::balance_of(id)
 		}

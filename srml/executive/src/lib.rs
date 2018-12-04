@@ -20,10 +20,6 @@
 
 #[cfg(test)]
 #[macro_use]
-extern crate serde_derive;
-
-#[cfg(test)]
-#[macro_use]
 extern crate parity_codec_derive;
 
 #[cfg_attr(test, macro_use)]
@@ -295,7 +291,7 @@ mod tests {
 	}
 
 	// Workaround for https://github.com/rust-lang/rust/issues/26925 . Remove when sorted.
-	#[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+	#[derive(Clone, Eq, PartialEq)]
 	pub struct Runtime;
 	impl system::Trait for Runtime {
 		type Origin = Origin;
@@ -331,6 +327,7 @@ mod tests {
 			transfer_fee: 0,
 			creation_fee: 0,
 			reclaim_rebate: 0,
+			_genesis_phantom_data: Default::default(),
 		}.build_storage().unwrap().0);
 		let xt = primitives::testing::TestXt(Some(1), 0, Call::transfer(2.into(), 69.into()));
 		let mut t = runtime_io::TestExternalities::<Blake2Hasher>::new(t);

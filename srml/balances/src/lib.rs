@@ -14,13 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Balances: Handles balances.
+//! Balances: Handles setting and retrieval of free balance, 
+//! retrieving total balance, reserve and unreserve balance, 
+//! repatriating a reserved balance to a beneficiary account that exists,
+//! transfering a balance between accounts (when not reserved),
+//! slashing an account balance, account removal, rewards,
+//! lookup of an index to reclaim an account (when not balance not reserved),
+//! increasing total stake.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-
-#[cfg(feature = "std")]
-#[macro_use]
-extern crate serde_derive;
 
 #[macro_use]
 extern crate srml_support as runtime_support;
@@ -271,7 +273,7 @@ decl_storage! {
 }
 
 /// Whatever happened about the hint given when creating the new account.
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[cfg_attr(feature = "std", derive(Debug))]
 #[derive(Encode, Decode, PartialEq, Eq, Clone, Copy)]
 pub enum NewAccountOutcome {
 	NoHint,

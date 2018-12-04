@@ -48,11 +48,11 @@ pub fn new_light_backend<B: BlockT, S: BlockchainStorage<B>, F: Fetcher<B>>(bloc
 }
 
 /// Create an instance of light client.
-pub fn new_light<B, S, F, GS>(
+pub fn new_light<B, S, F, GS, RA>(
 	backend: Arc<Backend<S, F>>,
 	fetcher: Arc<F>,
 	genesis_storage: GS,
-) -> ClientResult<Client<Backend<S, F>, RemoteCallExecutor<Blockchain<S, F>, F, Blake2Hasher>, B>>
+) -> ClientResult<Client<Backend<S, F>, RemoteCallExecutor<Blockchain<S, F>, F, Blake2Hasher>, B, RA>>
 where
 	B: BlockT<Hash=H256>,
 	S: BlockchainStorage<B>,
@@ -65,13 +65,14 @@ where
 }
 
 /// Create an instance of fetch data checker.
-pub fn new_fetch_checker<E, H>(
+pub fn new_fetch_checker<E, H, B: BlockT, S: BlockchainStorage<B>, F>(
+	blockchain: Arc<Blockchain<S, F>>,
 	executor: E,
-) -> LightDataChecker<E, H>
+) -> LightDataChecker<E, H, B, S, F>
 	where
 		E: CodeExecutor<H>,
 		H: Hasher,
 
 {
-	LightDataChecker::new(executor)
+	LightDataChecker::new(blockchain, executor)
 }

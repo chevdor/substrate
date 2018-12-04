@@ -25,10 +25,6 @@ extern crate srml_support as runtime_support;
 
 #[cfg(test)]
 extern crate sr_io as runtime_io;
-
-#[cfg(feature = "std")]
-#[macro_use]
-extern crate serde_derive;
 #[cfg(feature = "std")]
 extern crate serde;
 
@@ -334,12 +330,14 @@ mod tests {
 			creation_fee: 0,
 			existential_deposit: 0,
 			reclaim_rebate: 0,
+			_genesis_phantom_data: Default::default(),
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
 			proposal_bond: Permill::from_percent(5),
 			proposal_bond_minimum: 1,
 			spend_period: 2,
 			burn: Permill::from_percent(50),
+			_genesis_phantom_data: Default::default(),
 		}.build_storage().unwrap().0);
 		t.into()
 	}
