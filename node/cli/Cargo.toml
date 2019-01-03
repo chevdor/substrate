@@ -12,7 +12,6 @@ futures = "0.1"
 exit-future = "0.1"
 substrate-cli = { path = "../../core/cli" }
 parity-codec = { version = "2.1" }
-parking_lot = "0.4"
 slog = "^2"
 sr-io = { path = "../../core/sr-io" }
 substrate-client = { path = "../../core/client" }
@@ -20,11 +19,11 @@ substrate-primitives = { path = "../../core/primitives" }
 node-runtime = { path = "../runtime" }
 node-primitives = { path = "../primitives" }
 hex-literal = "0.1"
+substrate-basic-authorship = { path = "../../core/basic-authorship" }
 substrate-service = { path = "../../core/service" }
 substrate-transaction-pool = { path = "../../core/transaction-pool" }
 substrate-network = { path = "../../core/network" }
 substrate-consensus-aura = { path = "../../core/consensus/aura" }
-substrate-consensus-common = { path = "../../core/consensus/common" }
 substrate-finality-grandpa = { path = "../../core/finality-grandpa" }
 sr-primitives = { path = "../../core/sr-primitives" }
 node-executor = { path = "../executor" }

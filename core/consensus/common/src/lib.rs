@@ -24,16 +24,19 @@
 
 extern crate substrate_primitives as primitives;
 extern crate futures;
+extern crate parking_lot;
 extern crate sr_version as runtime_version;
 extern crate sr_primitives as runtime_primitives;
+#[cfg(any(test, feature = "test-helpers"))]
+extern crate substrate_test_client as test_client;
 extern crate tokio;
 
 extern crate parity_codec as codec;
-#[macro_use]
 extern crate parity_codec_derive;
 
 #[macro_use]
 extern crate error_chain;
+#[macro_use] extern crate log;
 
 use std::sync::Arc;
 
@@ -45,6 +48,7 @@ use futures::prelude::*;
 pub mod offline_tracker;
 pub mod error;
 mod block_import;
+pub mod import_queue;
 pub mod evaluation;
 
 // block size limit.
@@ -60,9 +64,9 @@ pub trait Authorities<B: Block> {
 }
 
 /// Environment producer for a Consensus instance. Creates proposer instance and communication streams.
-pub trait Environment<B: Block> {
+pub trait Environment<B: Block, ConsensusData> {
 	/// The proposer type this creates.
-	type Proposer: Proposer<B>;
+	type Proposer: Proposer<B, ConsensusData>;
 	/// Error which can occur upon creation.
 	type Error: From<Error>;
 
@@ -77,13 +81,15 @@ pub trait Environment<B: Block> {
 ///
 /// This will encapsulate creation and evaluation of proposals at a specific
 /// block.
-pub trait Proposer<B: Block> {
+///
+/// Proposers are generic over bits of "consensus data" which are engine-specific.
+pub trait Proposer<B: Block, ConsensusData> {
 	/// Error type which can occur when proposing or evaluating.
 	type Error: From<Error> + ::std::fmt::Debug + 'static;
 	/// Future that resolves to a committed proposal.
 	type Create: IntoFuture<Item=B,Error=Self::Error>;
 	/// Create a proposal.
-	fn propose(&self) -> Self::Create;
+	fn propose(&self, consensus_data: ConsensusData) -> Self::Create;
 }
 
 /// An oracle for when major synchronization work is being undertaken.
